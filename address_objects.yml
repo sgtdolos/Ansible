@@ -1,0 +1,43 @@
+---
+
+#Example CSV file
+#name,value,type,description,device_group
+#fqdn_www.cnn.com,www.cnn.com,fqdn,Test URL,shared
+#h-10.86.5.11,10.86.5.11,ip-netmask,Test 3,North_America
+
+- hosts: panorama
+  connection: local
+  gather_facts: no
+  
+  collections:
+    - paloaltonetworks.panos
+
+  handlers:
+    - name: commit config
+      panos_commit_panorama:
+        provider: "{{ panorama_provider }}"
+
+  tasks:
+    - name: include variables (free-form)
+      include_vars: vars.yml
+      no_log: 'yes'
+
+    - name: read csv input
+      read_csv:
+        path: objects.csv
+        key: name
+      register: obj
+    
+    # create address object
+    - name: create address object
+      panos_address_object:
+        provider: "{{ panorama_provider }}"
+        address_type: "{{ item.value.type }}"
+        name: "{{ item.value.name }}"
+        description: "{{ (item.value.description == '') | ternary(omit, item.value.description) }}"
+        device_group: "{{ item.value.device_group }}"
+        value: "{{ item.value.value }}"
+        state: 'present'
+        commit: false
+      notify: commit config
+      loop: "{{ obj.dict|dict2items }}"
